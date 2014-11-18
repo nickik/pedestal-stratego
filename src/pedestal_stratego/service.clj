@@ -3,7 +3,11 @@
             [io.pedestal.http.route :as route]
             [io.pedestal.http.body-params :as body-params]
             [io.pedestal.http.route.definition :refer [defroutes]]
-            [ring.util.response :as ring-resp]))
+            [ring.util.response :as ring-resp]
+            [pedestal-stratego.game :as g]
+            [clojure.pprint :as p]))
+
+(defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
 
 (defn about-page
   [request]
@@ -15,11 +19,58 @@
   [request]
   (ring-resp/response "Hello World!"))
 
+(defn get-games [request]
+  (ring-resp/response  (mapv (fn [game-id]
+                              {:url ((url-for) ::get-game :params {:id game-id})})
+                             (keys @g/games))))
+
+(defn create-game [request]
+  (println "create game")
+  (let [id (g/creat-game g/games g/counter 1 2)]
+    (ring-resp/response
+     {:url
+      ((url-for) ::get-game :params {:id id})})))
+
+(defn get-game [request]
+  (let [id (get-in request [:path-params :id])]
+    (ring-resp/response (get @g/games (Integer/parseInt id)))))
+
+(defn get-index [request]
+  (let [id (Integer/parseInt (get-in request [:path-params :id]))
+        index (Integer/parseInt (get-in request [:path-params :index]))]
+    (ring-resp/response
+     (get-in @g/games [id :field index]))))
+
+(defn make-move [request]
+  (let [id (Integer/parseInt (get-in request [:path-params :id]))
+        index (Integer/parseInt (get-in request [:path-params :index]))
+
+        move {:from index
+              :to 1}]
+
+    (ring-resp/response
+
+
+
+     ))
+
+
+  )
+
+
+(defn url-for []
+  (route/url-for-routes routes))
+
 (defroutes routes
-  [[["/" {:get home-page}
-     ;; Set default interceptors for /about and any other paths under /
-     ^:interceptors [(body-params/body-params) bootstrap/html-body]
-     ["/about" {:get about-page}]]]])
+  [[["/" {:get home-page} ^:interceptors [(body-params/body-params) bootstrap/html-body]
+     ["/about" {:get about-page}]
+
+     ["/game" {:get get-games
+               :post create-game}
+      ["/:id" {:get get-game}
+       ["/:index" {:get get-index
+                   :put make-move}]]]]]])
+
 
 ;; Consumed by pedestal-stratego.server/create-server
 ;; See bootstrap/default-interceptors for additional options you can configure

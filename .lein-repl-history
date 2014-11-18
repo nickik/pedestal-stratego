@@ -1,1 +1,6 @@
 (exit)
+(def serv (dev-run))
+(def serv (run-dev))
+lein test
+test
+(run-tests)

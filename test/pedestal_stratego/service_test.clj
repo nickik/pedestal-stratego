@@ -4,10 +4,10 @@
             [io.pedestal.http :as bootstrap]
             [pedestal-stratego.service :as service]))
 
-(def service
+#_(def service
   (::bootstrap/service-fn (bootstrap/create-servlet service/service)))
 
-(deftest home-page-test
+#_(deftest home-page-test
   (is (=
        (:body (response-for service :get "/"))
        "Hello World!"))
@@ -20,7 +20,7 @@
         "X-XSS-Protection" "1; mode=block"})))
 
 
-(deftest about-page-test
+#_(deftest about-page-test
   (is (.contains
        (:body (response-for service :get "/about"))
        "Clojure 1.6"))
