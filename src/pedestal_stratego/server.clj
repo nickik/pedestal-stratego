@@ -1,11 +1,14 @@
 (ns pedestal-stratego.server
   (:gen-class) ; for -main method in uberjar
   (:require [io.pedestal.http :as server]
-            [pedestal-stratego.service :as service]))
+            [pedestal-stratego.service :as service]
+            [ns-tracker.core :refer [ns-tracker]]))
 
 ;; This is an adapted service map, that can be started and stopped
 ;; From the REPL you can call server/start and server/stop on this service
 (defonce runnable-service (server/create-server service/service))
+
+(def modified-namespaces (ns-tracker "src"))
 
 (defn run-dev
   "The entry-point for 'lein run-dev'"

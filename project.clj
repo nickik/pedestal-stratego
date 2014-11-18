@@ -18,6 +18,7 @@
                  [ns-tracker "0.2.2"]
                  [prismatic/schema "0.2.6"]
                  [org.clojure/tools.reader "0.8.8"]
+                 [lein-light-nrepl "0.1.0"]
 
 
                  ]
