@@ -45,13 +45,20 @@
 (defn make-move [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
         index (Integer/parseInt (get-in request [:path-params :index]))
+
+        from-piece-moves (:possible-move (f/get-piece (:field (g/get-game g/games id)) index))
+
         move {:from index
-              :to (:to (:edn-params request))}]
+              :to (some #{(:to (:edn-params request))} from-piece-moves)}]
 
-    (g/add-move g/games id move)
-    (g/execute-move g/games id move)
+    (println "from-piece-moves")
+    (p/pprint from-piece-moves)
+    (println (some #{(:to (:edn-params request))} from-piece-moves))
 
-    (ring-resp/redirect ((url-for) ::get-game :params {:id id})) ))
+    (ring-resp/response (when (:to move)
+                          (do
+                            (g/execute-move g/games id move)
+                            (g/add-move g/games id move))))))
 
 (defn get-moves [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))]
