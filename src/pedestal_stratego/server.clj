@@ -14,17 +14,13 @@
   "The entry-point for 'lein run-dev'"
   [& args]
   (println "\nCreating your [DEV] server...")
-  (-> service/service ;; start with production configuration
+  (-> service/service
       (merge {:env :dev
-              ;; do not block thread that starts web server
               ::server/join? false
-              ;; Routes can be a function that resolve routes,
-              ;;  we can use this to set the routes to be reloadable
               ::server/routes (fn []
                                 (doseq [ns-sym (modified-namespaces)]
                                   (require ns-sym :reload))
                                 service/routes)
-              ;; all origins are allowed in dev mode
               ::server/allowed-origins {:creds true :allowed-origins (constantly true)}})
       ;; Wire up interceptor chains
       server/default-interceptors

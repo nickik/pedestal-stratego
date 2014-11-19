@@ -286,7 +286,7 @@
 
 #_(possible-moves-field full-field)
 
-(s/defn ^:always-validate set-piece :- Field [f :- Field i :- s/Num p :- Piece]
+(s/defn ^:always-validate set-piece :- Field [f :- Field i :- s/Num p :- (s/maybe Piece)]
   (assoc-in f [i :piece] p))
 
 (s/defn ^:always-validate set-grouping [field :- Field
@@ -363,3 +363,16 @@
                  (:rank to-piece)) nil
               :else (winner from-piece to-piece))))
 
+
+(s/defn ^:always-validate execute-move :- Field [f :- Field
+                                                 m :- Move]
+  (possible-moves-field
+   (let [piece1 (get-piece f (:from m))
+         piece2 (get-piece f (:to m))]
+     (if (nil? piece2)
+       (-> f
+           (set-piece (:from m) nil)
+           (set-piece (:to m) piece1))
+       (-> f
+           (set-piece (:from m) nil)
+           (fight (:to m) piece1 piece2))))))

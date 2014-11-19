@@ -19,5 +19,16 @@
                            :id id
                            :field (f/set-grouping (f/set-grouping f/empty-field (f/random-grouping)
                                                                   :top 1)
-                                                  (f/random-grouping) :bottum 2)})
+                                                  (f/random-grouping) :bottum 2)
+                           :moves []})
     id))
+
+(defn add-move [games id move]
+  (swap! games update-in [id :moves] conj move))
+
+
+(defn get-game [games id]
+  (get @games id))
+
+(s/defn execute-move [games id move]
+  (swap! games update-in [id :field] f/execute-move move))

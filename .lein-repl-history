@@ -4,3 +4,4 @@
 lein test
 test
 (run-tests)
+(def debug (atom nil))

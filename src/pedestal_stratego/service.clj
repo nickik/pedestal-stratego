@@ -5,7 +5,8 @@
             [io.pedestal.http.route.definition :refer [defroutes]]
             [ring.util.response :as ring-resp]
             [pedestal-stratego.game :as g]
-            [clojure.pprint :as p]))
+            [clojure.pprint :as p]
+            [pedestal-stratego.field :as f]))
 
 (defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
 
@@ -33,7 +34,7 @@
 
 (defn get-game [request]
   (let [id (get-in request [:path-params :id])]
-    (ring-resp/response (get @g/games (Integer/parseInt id)))))
+    (ring-resp/response (g/get-game g/games (Integer/parseInt id)))))
 
 (defn get-index [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
@@ -44,19 +45,18 @@
 (defn make-move [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
         index (Integer/parseInt (get-in request [:path-params :index]))
-
         move {:from index
-              :to 1}]
+              :to (:to (:edn-params request))}]
 
+    (g/add-move g/games id move)
+    (g/execute-move g/games id move)
+
+    (ring-resp/redirect ((url-for) ::get-game :params {:id id})) ))
+
+(defn get-moves [request]
+  (let [id (Integer/parseInt (get-in request [:path-params :id]))]
     (ring-resp/response
-
-
-
-     ))
-
-
-  )
-
+     (:moves (g/get-game g/games id)))))
 
 (defn url-for []
   (route/url-for-routes routes))
@@ -68,6 +68,7 @@
      ["/game" {:get get-games
                :post create-game}
       ["/:id" {:get get-game}
+       ["/moves" {:get get-moves}]
        ["/:index" {:get get-index
                    :put make-move}]]]]]])
 
