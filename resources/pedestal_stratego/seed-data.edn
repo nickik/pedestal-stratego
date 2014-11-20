@@ -1,0 +1,13 @@
+[
+
+{:db/id #db/id[:db.part/user -5], :user/name "Nick"}
+{:db/id #db/id[:db.part/user -6], :user/name "Bio"}
+{:db/id #db/id[:db.part/user -7], :user/name "Gandro"}
+{:db/id #db/id[:db.part/user -8], :user/name "Zupfe"}
+
+{:db/id #db/id[:db.part/user -5], :user/password "test1"}
+{:db/id #db/id[:db.part/user -6], :user/password "test2"}
+{:db/id #db/id[:db.part/user -7], :user/password "test3"}
+{:db/id #db/id[:db.part/user -8], :user/password "test4"}
+
+]

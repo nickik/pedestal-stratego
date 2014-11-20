@@ -102,12 +102,12 @@
              Remove-Action
              Move-Action))
 
+(def Move-Error {:error s/Keyword
+                 (s/optional-key :possible) s/Any})
+
 (def Move-Action {:action [Action]
                   :player s/Num
                   (s/optional-key :error) [Move-Error] })
-
-(def Move-Error {:error s/Keyword
-                 (s/optional-key :possible) s/Any})
 
 (s/defn ^:always-validate format-piece-console [p :- Piece]
   (condp = (:rank p)
@@ -129,6 +129,9 @@
           (if (:piece f)
             (format-piece-console (:piece f))
             (if (= :gras (:ground f)) "_" "O"))) field))
+
+(s/defn ^:always-validate get-piece :- (s/maybe Piece) [f :- Field i :- s/Num]
+  (get-in f [i :piece]))
 
 (s/defn ^:always-validate print-console [field :- Field]
   (println (apply str (interpose "\n" (map #(apply str %)
@@ -235,9 +238,6 @@
 (s/defn ^:always-validate tile-occupied-friendly? [f :- Field p :- s/Num i :- s/Num]
   (= (:player (get-piece f i))
      p))
-
-(s/defn ^:always-validate get-piece :- (s/maybe Piece) [f :- Field i :- s/Num]
-  (get-in f [i :piece]))
 
 (s/defn ^:always-validate filter-out-friendly [f :- Field player :- s/Num reachble-tiles]
     (vec (filter #(not (tile-occupied-friendly? f player %))

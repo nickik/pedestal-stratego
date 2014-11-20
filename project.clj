@@ -20,7 +20,9 @@
                  [org.clojure/tools.reader "0.8.8"]
                  [lein-light-nrepl "0.1.0"]
 
-
+                 [com.datomic/datomic-free "0.9.5067" :exclusions [joda-time]]
+                 [geheimtur "0.1.2"]
+                 
                  ]
   :min-lein-version "2.0.0"
   :repl-options {:nrepl-middleware [lighttable.nrepl.handler/lighttable-ops]}

@@ -5,3 +5,22 @@ lein test
 test
 (run-tests)
 (def debug (atom nil))
+(exit)
+(def ser (dev-run))
+(def ser (run-dev))
+(ns pedestal-stratego.peer)
+uri
+(use 'datomic.api)
+(exit)
+ls
+(require [datomic.core :as d])
+(use 'datomic.api)
+(exit)
+(def ser (run-dev))
+(def ser (dev-run))
+(def ser (run-dev))
+(exit)
+(def s (run-dev))
+(exit)
+(def s (run-dev))
+(exit)
