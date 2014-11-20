@@ -42,7 +42,7 @@
 
 (defn get-games [request]
   (ring-resp/response  (mapv (fn [game-id]
-                              {:url ((url-for) ::get-game :params {:id game-id})})
+                              {:game-id game-id})
                              (keys @g/games))))
 
 (defn home-page [req]
@@ -51,23 +51,34 @@
 (defn create-game [request]
   (let [id (g/creat-game g/games g/counter (:user (get-identity request)) nil)]
     (ring-resp/redirect
-     ((url-for) ::get-game :params {:id id}))))
+     ((url-for) :get-game-route :params {:id id}))))
 
+(defn add-start-pos [request]
+  (let [id (Integer/parseInt (get-in request [:path-params :id]))
+        start (:edn-params request)
+        user (:user (get-identity request))]
 
-#_(defn add-start-pos [request]
-  (let [id (get-in request [:path-params :id])
-        start (:edn-params request)]
-    ))
+    (g/add-start id start user)
+    (ring-resp/response (f/mask-rank (:field (g/get-game g/games id)) user))))
 
-(defn get-game [request]
-  (let [id (get-in request [:path-params :id])]
-    (ring-resp/response (g/get-game g/games (Integer/parseInt id)))))
+(defn get-game-route [request]
+  (let [id (Integer/parseInt (get-in request [:path-params :id]))
+        user (:user (get-identity request))
+
+        exist-id (some #{id} (keys @g/games))
+
+        game (g/get-masked-game g/games id user)]
+    (if exist-id
+      (ring-resp/response game)
+      (ring-resp/redirect
+       ((url-for) ::get-games)))))
 
 (defn get-index [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
-        index (Integer/parseInt (get-in request [:path-params :index]))]
+        index (Integer/parseInt (get-in request [:path-params :index]))
+        user (:user (get-identity request))]
     (ring-resp/response
-     (get-in @g/games [id :field index]))))
+     (get (f/mask-rank (:field (g/get-game g/games id)) user) index))))
 
 (defn make-move [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
@@ -75,17 +86,34 @@
 
         from-piece-moves (:possible-move (f/get-piece (:field (g/get-game g/games id)) index))
 
+        user (:user (get-identity request))
+
         move {:from index
-              :to (some #{(:to (:edn-params request))} from-piece-moves)}]
+              :to (some #{(:to (:edn-params request))} from-piece-moves)
+              :user user}
 
-    #_(println "from-piece-moves")
-    #_(p/pprint from-piece-moves)
-    #_(println (some #{(:to (:edn-params request))} from-piece-moves))
+        from-rank (get-in (g/get-game g/games id) [:field index :piece :rank])
 
-    (ring-resp/response (when (:to move)
-                          (do
-                            (g/execute-move g/games id move)
-                            (g/add-move g/games id move))))))
+        to-rank (get-in (g/get-game g/games id) [:field (:to move) :piece :rank])
+
+        player-that-moved-last (:user (g/get-last-move g/games id))]
+
+    (if (= player-that-moved-last
+           user)
+      (ring-resp/response {:error :not-your-move})
+      (do
+        (when (:to move)
+          (do
+            (g/execute-move g/games id move)
+            (g/add-move g/games id move)))
+
+        (if (= :flag to-rank)
+          (do
+            (swap! g/games assoc-in [id :winner] user)
+            (ring-resp/response {:winner user}))
+          (ring-resp/response {:game (g/get-masked-game g/games id user)
+                               :move {:from from-rank
+                                      :to to-rank}}))))))
 
 (defn get-moves [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))]
@@ -115,14 +143,19 @@
      ["/game" {:get get-games
                :post [:create-game create-game ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
                                                                (guard :silent? false)]]}
-      ["/:id" {:get get-game
-               #_:put #_[:add-start-pos add-start-pos]}
+
+      ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
+                                                        (guard :silent? false)]]
+
+               :put [:add-start-pos add-start-pos ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
+                                                                  (guard :silent? false)
+                                                                  ]]}
        ["/moves" {:get get-moves}]
-       ["/:index" {:get get-index
+       ["/:index" {:get [:get-index get-index ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
+                                                              (guard :silent? false)]]
                    :put [:make-move make-move ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
                                                               (guard :silent? false)
                                                               :unauthorized-fn is-part-of-game?]]}]]]]]])
-
 
 ;; Consumed by pedestal-stratego.server/create-server
 ;; See bootstrap/default-interceptors for additional options you can configure

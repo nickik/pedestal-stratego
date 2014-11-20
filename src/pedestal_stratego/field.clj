@@ -6,7 +6,7 @@
 
 (def Ground (s/enum :water :gras))
 
-(def Rank (s/enum :r1 :r2 :r3 :r4 :r5 :r6 :r7 :r8 :r9 :spy :bomb :flag))
+(def Rank (s/enum :r1 :r2 :r3 :r4 :r5 :r6 :r7 :r8 :r9 :spy :bomb :flag :r0))
 
 (def Move
   "Schema for Move"
@@ -15,7 +15,7 @@
 
 (def Piece
   "Scheme for Piece"
-  {:player s/Num ;;can be relaced by lookup if player exists
+  {:player s/Any
    :rank Rank
    (s/optional-key :possible-move) s/Any})
 
@@ -106,7 +106,7 @@
                  (s/optional-key :possible) s/Any})
 
 (def Move-Action {:action [Action]
-                  :player s/Num
+                  :player s/Any
                   (s/optional-key :error) [Move-Error] })
 
 (s/defn ^:always-validate format-piece-console [p :- Piece]
@@ -122,7 +122,8 @@
     :r9 "9"
     :spy "S"
     :bomb "B"
-    :flag "F"))
+    :flag "F"
+    :r0 "X"))
 
 (defn format-console [field]
   (mapv (fn [f]
@@ -149,7 +150,7 @@
   (some #{i} all-index-exept-water))
 
 
-(s/defn not-blocked-by-frindly-piece [f :- Field player :- s/Num i :- s/Num]
+(s/defn not-blocked-by-frindly-piece [f :- Field player :- s/Any i :- s/Num]
   (not= (:player (get-piece f i))
      player))
 
@@ -162,7 +163,7 @@
                    :east (if (= (mod i 10) 0) nil (inc i))))))
 
 
-(s/defn is-occupied-by-enemy-piece :- s/Bool [f :- Field player :- s/Num i :- s/Num]
+(s/defn is-occupied-by-enemy-piece :- s/Bool [f :- Field player :- s/Any i :- s/Num]
   (let [enemy-p (:player (get-piece f i))]
     #_(println "enemy-p: " enemy-p " player: " player "res: " (and enemy-p
           (not= enemy-p
@@ -177,7 +178,7 @@
    :west :east
    :east :west})
 
-(s/defn ^:always-validate valid-move [f :- Field player :- s/Num dir :- Direction i :- s/Num]
+(s/defn ^:always-validate valid-move [f :- Field player :- s/Any dir :- Direction i :- s/Num]
   ;;if one move into the other direction, a enemy piece exists, this means the r9 hass to fail on this field,
   ;; for other pieces it does not matter because they will always find themselfs
 
@@ -189,7 +190,7 @@
 
       i)))
 
-(s/defn ^:always-validate surounding-tiles-dir [f :- Field player :- s/Num i :- s/Num dir :- Direction]
+(s/defn ^:always-validate surounding-tiles-dir [f :- Field player :- s/Any i :- s/Num dir :- Direction]
   (when (simple-dir i dir)
     (valid-move
      f
@@ -201,7 +202,7 @@
 (s/defn ^:always-validate
   surounding-tiles :- #{s/Num}
   "Return surounding tiles, the assumition is that they are empty"
-  [f :- Field player :- s/Num i :- s/Num]
+  [f :- Field player :- s/Any i :- s/Num]
   (set (filter (comp not nil?)
                (mapv valid-index
                     (mapv #(surounding-tiles-dir f player i %)
@@ -209,7 +210,7 @@
 
 (s/defn ^:always-validate
   search-direction :- [s/Num]
-  [f :- Field player :- s/Num start :- s/Num, dir :- Direction]
+  [f :- Field player :- s/Any start :- s/Num, dir :- Direction]
   (loop [i start acc []]
     (let [pos (surounding-tiles-dir f player i dir)]
       (if pos
@@ -219,14 +220,14 @@
 (s/defn ^:always-validate
   surounding-tiles-r9 :- #{[s/Num]}
   "Return surounding tiles for scout (:r9), the assumition is that they are empty"
-  [f :- Field player :- s/Num  i :- s/Num]
+  [f :- Field player :- s/Any  i :- s/Num]
   (into #{} (map #(search-direction f player i %)
                  [:north :south :east :west])))
 
 (s/defn ^:always-validate
   reachable
   "All fields that can be reached, assuming fields are all empty"
-  [f :- Field player :- s/Num i :- s/Num r :- Rank]
+  [f :- Field player :- s/Any i :- s/Num r :- Rank]
   (cond
    (some #{r} [:bomb :flag]) #{}
    (= r :r9) (surounding-tiles-r9 f player i)
@@ -235,11 +236,11 @@
 (s/defn ^:always-validate tile-empty? [f :- Field i :- s/Num]
   (nil? (:piece (get f i))))
 
-(s/defn ^:always-validate tile-occupied-friendly? [f :- Field p :- s/Num i :- s/Num]
+(s/defn ^:always-validate tile-occupied-friendly? [f :- Field player :- s/Any i :- s/Num]
   (= (:player (get-piece f i))
-     p))
+     player))
 
-(s/defn ^:always-validate filter-out-friendly [f :- Field player :- s/Num reachble-tiles]
+(s/defn ^:always-validate filter-out-friendly [f :- Field player :- s/Any reachble-tiles]
     (vec (filter #(not (tile-occupied-friendly? f player %))
                  reachble-tiles)))
 
@@ -292,7 +293,7 @@
 (s/defn ^:always-validate set-grouping [field :- Field
                                         grouping :- [Rank]
                                         side :- (s/enum :top :bottum)
-                                        player :- s/Num]
+                                        player :- s/Any]
   (possible-moves-field (reduce (fn [field [rank pos]]
                                  (set-piece field pos {:rank rank :player player})) field (map #(vector %1 %2) grouping  (if (= :top side)
                                                                                                                            (vec (range 1 41))
@@ -308,7 +309,7 @@
 #_(print-console full-field)
 
 
-(s/defn  ^:always-validate move-possible? :- [Move-Error] [f :- Field player :- s/Num move :- Move]
+(s/defn  ^:always-validate move-possible? :- [Move-Error] [f :- Field player :- s/Any move :- Move]
   (let [from (:from move)
         errors [(when-not (= player (:player (get-piece f from)))
                   {:error :from-user})
@@ -322,7 +323,7 @@
 
 
 (s/defn ^:always-validate abstract-move :- Move-Action [f :- Field
-                                                        player :- s/Num
+                                                        player :- s/Any
                                                         move :- Move]
   (let [move-error (move-possible? f player move)]
     (if (empty? move-error)
@@ -376,3 +377,19 @@
        (-> f
            (set-piece (:from m) nil)
            (fight (:to m) piece1 piece2))))))
+
+(s/defn ^:always-validate mask-rank [field :- (s/maybe Field) user :- (s/either s/Str s/Num)]
+  (if (nil? field)
+    nil
+    (apply merge
+           (map
+            (fn [[k tile]]
+              (let [p (:piece tile)
+                    piece-owner (:player p)]
+                {k
+                 (if p
+                   (if (= user piece-owner)
+                     tile
+                     (assoc-in tile [:piece :rank] :r0))
+                   tile)}))
+            field))))

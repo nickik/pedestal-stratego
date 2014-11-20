@@ -10,6 +10,8 @@
 
 (def modified-namespaces (ns-tracker "src"))
 
+#_(def serv (run-dev))
+
 (defn run-dev
   "The entry-point for 'lein run-dev'"
   [& args]
