@@ -22,7 +22,8 @@
 
                  [com.datomic/datomic-free "0.9.5067" :exclusions [joda-time]]
                  [geheimtur "0.1.2"]
-                 
+                 [hiccup "1.0.5"]
+
                  ]
   :min-lein-version "2.0.0"
   :repl-options {:nrepl-middleware [lighttable.nrepl.handler/lighttable-ops]}

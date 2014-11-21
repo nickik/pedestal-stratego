@@ -1,7 +1,8 @@
 (ns pedestal-stratego.game
   (:require [schema.core :as s]
             [clojure.pprint :as p]
-            [pedestal-stratego.field :as f]))
+            [pedestal-stratego.field :as f]
+            [pedestal-stratego.peer :as d]))
 
 (def counter (atom 0))
 
@@ -9,10 +10,12 @@
   (let [now @counter]
     (swap! counter inc)))
 
-
 (def games (atom {}))
 
 (s/defn creat-game [games counter player1 player2]
+
+  (d/creat-game (d/get-conn) player1)
+
   (let [id (get-and-inc counter)]
     (swap! games assoc id {:player1 player1
                            :player2 player2
@@ -24,6 +27,10 @@
     (f/print-console (get-in @games [id :field]))
     (f/print-console (f/mask-rank (get-in @games [id :field]) player1))
     id))
+
+(defn get-game
+  ([games id]
+   (get @games id)))
 
 (s/defn add-start [id start user]
   (let [game (get-game games id)
@@ -45,9 +52,6 @@
 (defn add-move [games id move]
   (swap! games update-in [id :moves] conj move))
 
-(defn get-game
-  ([games id]
-   (get @games id)))
 
 (defn get-masked-game [games id user]
   (update-in (get-game games id)

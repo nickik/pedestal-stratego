@@ -15,4 +15,22 @@
   :db/fulltext false
   :db/doc "Password"
   :db.install/_attribute :db.part/db}
+
+ {:db/id #db/id[:db.part/db]
+  :db/ident :game/player1
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/one
+  :db/fulltext false
+  :db/doc "Player 1"
+  :db.install/_attribute :db.part/db}
+
+ {:db/id #db/id[:db.part/db]
+  :db/ident :game/player2
+  :db/valueType :db.type/ref
+  :db/cardinality :db.cardinality/one
+  :db/fulltext false
+  :db/doc "Player 2"
+  :db.install/_attribute :db.part/db}
+
+
 ]

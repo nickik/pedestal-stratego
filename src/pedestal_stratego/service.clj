@@ -9,8 +9,10 @@
             [clojure.pprint :as p]
             [pedestal-stratego.field :as f]
             [pedestal-stratego.peer :as d]
+            [pedestal-stratego.view :as v]
             [geheimtur.util.auth :as auth :refer [throw-forbidden get-identity]]
-            [geheimtur.interceptor :refer [ interactive guard http-basic]]))
+            [geheimtur.interceptor :refer [ interactive guard http-basic]]
+            [hiccup.core :refer :all]))
 
 (defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
 
@@ -26,12 +28,22 @@
                               (route/url-for ::about-page))))
 
 (defn user-page [request]
-  (let [user (get-in request [:path-params :user])
-        e (d/entity? user)
-        user (if e
-               (d/get-user-by-entity (:datomic-db request) e)
-               user)]
-    (ring-resp/response (str (d/get-user (:datomic-db request) user)))))
+  (let [param-user (get-in request [:path-params :user])
+
+        full-param-user (d/get-user-by-name-or-entity (:datomic-db request) param-user)
+
+        loggedin-user (:user (get-identity request))]
+
+    (if full-param-user
+      (ring-resp/response (v/view-user full-param-user loggedin-user))
+      (ring-resp/not-found (html
+                            [:p "User does not exists"])))))
+
+(defn users-page [request]
+  (ring-resp/response
+   (v/view-users (:uri request)
+                 (:datomic-db request)
+                 (:user (get-identity request)))))
 
 (defn creat-user [request]
   (let [user (:name (:edn-params request))
@@ -44,9 +56,6 @@
   (ring-resp/response  (mapv (fn [game-id]
                               {:game-id game-id})
                              (keys @g/games))))
-
-(defn home-page [req]
-   (ring-resp/response "This is it, the best webside ever."))
 
 (defn create-game [request]
   (let [id (g/creat-game g/games g/counter (:user (get-identity request)) nil)]
@@ -135,26 +144,33 @@
     :datomic-db (d/get-db)
     :datomic-conn (d/get-conn)))
 
+(defn home-page [request]
+   (ring-resp/response
+    (html [:body
+           [:p [:a {:rel :self  :href (:uri request)} "self"]]
+           [:p [:a {:rel :game  :href ((url-for) ::get-games)} "game"]]
+
+           [:p [:a {:rel :users :href ((url-for) ::users-page)} "users"]]])))
+
 (defroutes routes
-  [[["/" {:get home-page} ^:interceptors [(body-params/body-params) bootstrap/html-body add-datomic-db]
-     ["/users" {:post creat-user}
-      ["/:user" {:get user-page} ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                 (guard :silent? false)]]]
+  [[["/" {:get home-page} ^:interceptors [(body-params/body-params)
+                                          bootstrap/html-body
+                                          add-datomic-db
+                                          (http-basic "Stratego Login" (partial d/credentials (d/get-db)))]
+
+     ["/users" {:get [:user-page-route users-page ^:interceptors []]
+                :post creat-user}
+      ["/:user" {:get user-page}]]
      ["/game" {:get get-games
-               :post [:create-game create-game ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                               (guard :silent? false)]]}
+               :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
 
-      ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                        (guard :silent? false)]]
+      ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(guard :silent? false)]]
 
-               :put [:add-start-pos add-start-pos ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                                  (guard :silent? false)
+               :put [:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)
                                                                   ]]}
        ["/moves" {:get get-moves}]
-       ["/:index" {:get [:get-index get-index ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                              (guard :silent? false)]]
-                   :put [:make-move make-move ^:interceptors [(http-basic "Stratego Login" (partial d/credentials (d/get-db)))
-                                                              (guard :silent? false)
+       ["/:index" {:get [:get-index get-index ^:interceptors [(guard :silent? false)]]
+                   :put [:make-move make-move ^:interceptors [(guard :silent? false)
                                                               :unauthorized-fn is-part-of-game?]]}]]]]]])
 
 ;; Consumed by pedestal-stratego.server/create-server
@@ -182,4 +198,3 @@
               ::bootstrap/type :jetty
               ;;::bootstrap/host "localhost"
               ::bootstrap/port 8080})
-

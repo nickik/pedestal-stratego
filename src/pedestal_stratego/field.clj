@@ -11,7 +11,8 @@
 (def Move
   "Schema for Move"
   {:from s/Num
-   :to s/Num})
+   :to s/Num
+   (s/optional-key :user) (s/either s/Str s/Num)})
 
 (def Piece
   "Scheme for Piece"
@@ -390,6 +391,6 @@
                  (if p
                    (if (= user piece-owner)
                      tile
-                     (assoc-in tile [:piece :rank] :r0))
+                     (assoc-in (assoc-in tile [:piece :rank] :r0) [:piece :possible-move] #{}))
                    tile)}))
             field))))

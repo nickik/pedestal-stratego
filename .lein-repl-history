@@ -24,3 +24,6 @@ ls
 (exit)
 (def s (run-dev))
 (exit)
+(exit
+)
+(exit)
