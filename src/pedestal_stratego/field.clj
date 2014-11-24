@@ -6,7 +6,18 @@
 
 (def Ground (s/enum :water :gras))
 
-(def Rank (s/enum :r1 :r2 :r3 :r4 :r5 :r6 :r7 :r8 :r9 :spy :bomb :flag :r0))
+(def Rank (s/enum :piece.rank/r1
+                  :piece.rank/r2
+                  :piece.rank/r3
+                  :piece.rank/r4
+                  :piece.rank/r5
+                  :piece.rank/r6
+                  :piece.rank/r7
+                  :piece.rank/r8
+                  :piece.rank/r9
+                  :piece.rank/spy
+                  :piece.rank/bomb
+                  :piece.rank/flag ))
 
 (def Move
   "Schema for Move"
@@ -32,29 +43,29 @@
 
 (def Direction (s/enum :north :south :east :west))
 
-(def rank-count {:r1 1
-                 :r2 1
-                 :r3 2
-                 :r4 3
-                 :r5 4
-                 :r6 4
-                 :r7 4
-                 :r8 5
-                 :r9 8
-                 :spy 1
-                 :bomb 6
-                 :flag 1})
+(def rank-count {:piece.rank/r1 1
+                 :piece.rank/r2 1
+                 :piece.rank/r3 2
+                 :piece.rank/r4 3
+                 :piece.rank/r5 4
+                 :piece.rank/r6 4
+                 :piece.rank/r7 4
+                 :piece.rank/r8 5
+                 :piece.rank/r9 8
+                 :piece.rank/spy 1
+                 :piece.rank/bomb 6
+                 :piece.rank/flag 1})
 
-(def rank-defeat {:r1 [:bomb]
-                  :r2 [:bomb :r1]
-                  :r3 [:bomb :r1 :r2]
-                  :r4 [:bomb :r1 :r2 :r3]
-                  :r5 [:bomb :r1 :r2 :r3 :r4]
-                  :r6 [:bomb :r1 :r2 :r3 :r4 :r5]
-                  :r7 [:bomb :r1 :r2 :r3 :r4 :r5 :r6]
-                  :r8 [:r1 :r2 :r3 :r4 :r5 :r6 :r7]
-                  :r9 [:bomb :r1 :r2 :r3 :r4 :r5 :r6 :r7 :r8]
-                  :spy [:bomb :r2 :r3 :r4 :r5 :r6 :r7 :r8 :r9]})
+(def rank-defeat {:piece.rank/r1 [:piece.rank/bomb]
+                  :piece.rank/r2 [:piece.rank/bomb :piece.rank/r1]
+                  :piece.rank/r3 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2]
+                  :piece.rank/r4 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2 :piece.rank/r3]
+                  :piece.rank/r5 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2 :piece.rank/r3 :piece.rank/r4]
+                  :piece.rank/r6 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2 :piece.rank/r3 :piece.rank/r4 :piece.rank/r5]
+                  :piece.rank/r7 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2 :piece.rank/r3 :piece.rank/r4 :piece.rank/r5 :piece.rank/r6]
+                  :piece.rank/r8 [:piece.rank/r1 :piece.rank/r2 :piece.rank/r3 :piece.rank/r4 :piece.rank/r5 :piece.rank/r6 :piece.rank/r7]
+                  :piece.rank/r9 [:piece.rank/bomb :piece.rank/r1 :piece.rank/r2 :piece.rank/r3 :piece.rank/r4 :piece.rank/r5 :piece.rank/r6 :piece.rank/r7 :piece.rank/r8]
+                  :piece.rank/spy [:piece.rank/bomb :piece.rank/r2 :piece.rank/r3 :piece.rank/r4 :piece.rank/r5 :piece.rank/r6 :piece.rank/r7 :piece.rank/r8 :piece.rank/r9]})
 
 
 (def all-index (range 1 (inc 100)))
@@ -112,19 +123,19 @@
 
 (s/defn ^:always-validate format-piece-console [p :- Piece]
   (condp = (:rank p)
-    :r1 "1"
-    :r2 "2"
-    :r3 "3"
-    :r4 "4"
-    :r5 "5"
-    :r6 "6"
-    :r7 "7"
-    :r8 "8"
-    :r9 "9"
-    :spy "S"
-    :bomb "B"
-    :flag "F"
-    :r0 "X"))
+    :piece.rank/r1 "1"
+    :piece.rank/r2 "2"
+    :piece.rank/r3 "3"
+    :piece.rank/r4 "4"
+    :piece.rank/r5 "5"
+    :piece.rank/r6 "6"
+    :piece.rank/r7 "7"
+    :piece.rank/r8 "8"
+    :piece.rank/r9 "9"
+    :piece.rank/spy "S"
+    :piece.rank/bomb "B"
+    :piece.rank/flag "F"
+    :piece.rank/r0 "X"))
 
 (defn format-console [field]
   (mapv (fn [f]
@@ -141,6 +152,14 @@
                                              (format-console
                                               (get-sorted field))))))))
 
+
+(s/defn ^:always-validate field-html [field :- Field]
+  (apply str (interpose "<br>" (map #(apply str %)
+                                            (field-partition
+                                             (format-console
+                                              (get-sorted field)))))))
+
+
 (s/defn ^:always-validate can-walk-on :- s/Bool [tile :- Tile, p :- Piece]
   (and (= (:ground tile)
           :gras)
@@ -149,7 +168,6 @@
 
 (defn valid-index [i]
   (some #{i} all-index-exept-water))
-
 
 (s/defn not-blocked-by-frindly-piece [f :- Field player :- s/Any i :- s/Num]
   (not= (:player (get-piece f i))
@@ -220,7 +238,7 @@
 
 (s/defn ^:always-validate
   surounding-tiles-r9 :- #{[s/Num]}
-  "Return surounding tiles for scout (:r9), the assumition is that they are empty"
+  "Return surounding tiles for scout (:piece.rank/r9), the assumition is that they are empty"
   [f :- Field player :- s/Any  i :- s/Num]
   (into #{} (map #(search-direction f player i %)
                  [:north :south :east :west])))
@@ -230,8 +248,8 @@
   "All fields that can be reached, assuming fields are all empty"
   [f :- Field player :- s/Any i :- s/Num r :- Rank]
   (cond
-   (some #{r} [:bomb :flag]) #{}
-   (= r :r9) (surounding-tiles-r9 f player i)
+   (some #{r} [:piece.rank/bomb :piece.rank/flag]) #{}
+   (= r :piece.rank/r9) (surounding-tiles-r9 f player i)
    :default (surounding-tiles f player i)))
 
 (s/defn ^:always-validate tile-empty? [f :- Field i :- s/Num]
@@ -260,16 +278,16 @@
 
 (def sf (assoc-in empty-field [52 :piece]
            {:player 5
-            :rank :r9}))
+            :rank :piece.rank/r9}))
 
 (def sf1 (assoc-in sf [82 :piece]
                    {:player 5
-                    :rank :r6}))
+                    :rank :piece.rank/r6}))
 
 
 (def sf2 (assoc-in sf1 [22 :piece]
                    {:player 4
-                    :rank :r7}))
+                    :rank :piece.rank/r7}))
 
 (s/defn random-grouping :- [Rank] []
   (shuffle (mapcat
@@ -299,9 +317,6 @@
                                  (set-piece field pos {:rank rank :player player})) field (map #(vector %1 %2) grouping  (if (= :top side)
                                                                                                                            (vec (range 1 41))
                                                                                                                            (mapv #(- 101 %) (range 1 41)))))))
-
-(def r (random-grouping))
-
 (def full-field (set-grouping (set-grouping empty-field (random-grouping) :top 1) (random-grouping) :bottum 2))
 
 
@@ -391,6 +406,6 @@
                  (if p
                    (if (= user piece-owner)
                      tile
-                     (assoc-in (assoc-in tile [:piece :rank] :r0) [:piece :possible-move] #{}))
+                     (assoc-in (assoc-in tile [:piece :rank] :piece.rank/r0) [:piece :possible-move] #{}))
                    tile)}))
             field))))

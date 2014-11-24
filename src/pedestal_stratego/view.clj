@@ -2,7 +2,8 @@
   (:require [schema.core :as s]
             [clojure.pprint :as p]
             [hiccup.core :refer :all]
-            [pedestal-stratego.peer :as d]))
+            [pedestal-stratego.peer :as d]
+            [pedestal-stratego.field :as f]))
 
 (defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
 
@@ -21,12 +22,46 @@
           [:a {:rel :self :href uri} [:span {:itemprop :url} uri]]]]]
        nil))))
 
-(defn view-users [uri db auth-user]
+(defn view-users [uri db url-for auth-user]
   (html
    [:div {:itemscope :itemscope :itemtype "http://schema.org/Thing"}
     [:ul
-     [:li [:span {:itemprop :name} "Users"]]
-     [:li [:span {:itemprop :url} [:a {:rel :self :href uri} uri]]]
+     [:li {:itemprop :name} "Users"]
+     [:li [:a {:rel :self :href uri :itemprop :url} uri]]
      [:li
       (map #(view-user % auth-user)
-           (d/get-users db))]]]))
+           (d/get-users db url-for))]]]))
+
+(defn view-game [db url-for uri game-id]
+  (let [game  (d/get-full-game db game-id)
+        field   (:game/field game)
+        field-asci (d/parse-field db field)
+        p1  (d/get-user-by-name-or-entity db url-for (:db/id (:game/player1 game)))
+        p2 (d/get-user-by-name-or-entity db url-for (:db/id (:game/player1 game)))]
+    [:div {:itemscope :itemscope :itemtype "http://schema.org/Thing"}
+     [:h4 {:itemprop :name} "Game"]
+     [:p [:a {:rel :self :href uri :itemprop :url} uri]]
+     [:ul
+      [:li (view-user p1 nil)]
+      [:li (view-user p2 nil)]]
+     (when field-asci
+       (f/print-console field-asci)
+       [:code (f/field-html field-asci)])]))
+
+(defn view-games [db url-for uri]
+  (html
+   [:div {:itemscope :itemscope :itemtype "http://schema.org/Thing"}
+    [:h3 {:itemprop :name} "Games"]
+    [:a {:rel :self :href uri :itemprop :url} uri]
+    #_[:table {:border 0}
+     (map
+      (fn [db game-id]
+        (let [game-id (first game-id)]
+          [:tr
+           [:td
+            (view-game db
+                       url-for
+                       (url-for :get-game-route :params {:id game-id})
+                       game-id)]]))
+      (repeat db)
+      (d/get-games db))]]))

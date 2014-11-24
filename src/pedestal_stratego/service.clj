@@ -14,9 +14,9 @@
             [geheimtur.interceptor :refer [ interactive guard http-basic]]
             [hiccup.core :refer :all]))
 
-(defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
+(defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (clojure.pprint/pprint x#)) x#))
 
-(declare routes)
+(declare routes url-for)
 
 (defn url-for []
   (route/url-for-routes routes))
@@ -43,6 +43,7 @@
   (ring-resp/response
    (v/view-users (:uri request)
                  (:datomic-db request)
+                 (url-for)
                  (:user (get-identity request)))))
 
 (defn creat-user [request]
@@ -53,43 +54,51 @@
       (d/creat-user (:datomic-conn request) user pw)))))
 
 (defn get-games [request]
-  (ring-resp/response  (mapv (fn [game-id]
-                              {:game-id game-id})
-                             (keys @g/games))))
+  (ring-resp/response
+   (html (v/view-games (:datomic-db request)
+                       (url-for)
+                       (:uri request)))))
 
 (defn create-game [request]
-  (let [id (g/creat-game g/games g/counter (:user (get-identity request)) nil)]
+  (println "1")
+  (let [conn (:datomic-conn request)
+        id (g/creat-persistent-game! conn (:user (get-identity request)))]
+    (println "2->2")
+    (println "type: " (type id))
     (ring-resp/redirect
-     ((url-for) :get-game-route :params {:id id}))))
+     (dbg ((url-for) :get-game-route :params {:id id})))))
 
-(defn add-start-pos [request]
+#_(defn add-start-pos [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
         start (:edn-params request)
         user (:user (get-identity request))]
+    (g/add-start (:datomic-conn request)
+                 (:datomic-db request)
+                 id
+                 start
+                 user)
+    (ring-resp/redirect
+     ((url-for) :get-game-route :params {:id id}))))
 
-    (g/add-start id start user)
-    (ring-resp/response (f/mask-rank (:field (g/get-game g/games id)) user))))
 
 (defn get-game-route [request]
-  (let [id (Integer/parseInt (get-in request [:path-params :id]))
+  (let [id (Long/parseLong (get-in request [:path-params :id]))
         user (:user (get-identity request))
+        db (:datomic-db request)]
 
-        exist-id (some #{id} (keys @g/games))
+    (ring-resp/response
+     (html (v/view-game db (url-for) (:uri request) id)))))
 
-        game (g/get-masked-game g/games id user)]
-    (if exist-id
-      (ring-resp/response game)
-      (ring-resp/redirect
-       ((url-for) ::get-games)))))
-
-(defn get-index [request]
+#_(defn get-index [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
         index (Integer/parseInt (get-in request [:path-params :index]))
+        db (:datomic-db request)
         user (:user (get-identity request))]
+
     (ring-resp/response
      (get (f/mask-rank (:field (g/get-game g/games id)) user) index))))
 
-(defn make-move [request]
+#_(defn make-move [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))
         index (Integer/parseInt (get-in request [:path-params :index]))
 
@@ -124,12 +133,12 @@
                                :move {:from from-rank
                                       :to to-rank}}))))))
 
-(defn get-moves [request]
+#_(defn get-moves [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))]
     (ring-resp/response
      (:moves (g/get-game g/games id)))))
 
-(defn is-part-of-game? [context]
+#_(defn is-part-of-game? [context]
   (let [id (get-in context [:path-params :id])
         game (g/get-game g/games (Integer/parseInt id))
         player1 (:player1 game)
@@ -161,15 +170,12 @@
      ["/users" {:get [:user-page-route users-page ^:interceptors []]
                 :post creat-user}
       ["/:user" {:get user-page}]]
-     ["/game" {:get get-games
-               :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
-
+     ["/games" {:get get-games
+                :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
       ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(guard :silent? false)]]
 
-               :put [:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)
-                                                                  ]]}
-       ["/moves" {:get get-moves}]
-       ["/:index" {:get [:get-index get-index ^:interceptors [(guard :silent? false)]]
+               #_:put #_[:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)]]}
+       #_["/:index" {:get [:get-index get-index ^:interceptors [(guard :silent? false)]]
                    :put [:make-move make-move ^:interceptors [(guard :silent? false)
                                                               :unauthorized-fn is-part-of-game?]]}]]]]]])
 
