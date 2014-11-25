@@ -87,8 +87,6 @@
                   (assoc :request-method :get)))
       (ring-resp/response {:error "Body could not be validated, Pattern: [f/Rank]"}))))
 
-
-
 (defn get-game-route [request]
   (let [id (Long/parseLong (get-in request [:path-params :id]))
         user (:user (get-identity request))
@@ -137,7 +135,7 @@
       (do
         @(datomic.api/transact
           conn
-          [(dbg (g/execute-move conn db game-id move))])
+          (dbg (g/execute-move conn db game-id move)))
         (ring-resp/redirect
          ((url-for)
           :get-game-route
@@ -219,14 +217,15 @@
                                           bootstrap/html-body
                                           add-datomic-db
                                           (http-basic "Stratego Login" (partial d/credentials (d/get-db)))]
-     ["/users" {:get [:user-page-route users-page ^:interceptors []]
+     ["/users" {:get [:user-page-route users-page]
                 :post creat-user}
       ["/:user" {:get user-page}]]
      ["/games" {:get get-games
                 :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
-      ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(guard :silent? false)]]
-
-               :put [:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)]]}
+      ["/:id"
+       ^:interceptors [(guard :silent? false)]
+       {:get [:get-game-route get-game-route]
+              :put [:add-start-pos  add-start-pos  ]}
        ["/:index"
         ^:interceptors [(guard :silent? false)
                         :unauthorized-fn piece-owner?]

@@ -7,7 +7,6 @@
 
 (defmacro dbg [x] `(let [x# ~x] (do (println '~x "=") (p/pprint x#)) x#))
 
-
 (defn creat-persistent-game! [conn player1]
   @(datomic/transact
     conn
@@ -62,19 +61,11 @@
       (add-player-2! conn game-id user))
     (add-grouping! conn game-id start-rank pos user)))
 
-#_(defn get-masked-game [games id user]
-  (update-in (get-game games id)
-             [:field]
-             f/mask-rank
-             user))
-
 (s/defn move-piece-tx [from-id old-pos :- s/Num new-pos :- s/Num]
   [:db.fn/cas from-id :piece/pos old-pos new-pos])
 
 (s/defn delete-piece-tx [piece-id]
   [:db.fn/retractEntity piece-id])
-
-;; (get-rank-keyword) 17592186045422
 
 (s/defn winner [db from-piece to-piece]
   (if (some #{(d/get-rank db from-piece)} ((d/get-rank db to-piece)  f/rank-defeat))
@@ -82,7 +73,7 @@
      (move-piece-tx (:db/id from-piece)
                      (:piece/pos from-piece)
                      (:piece/pos to-piece))]
-    [:db.fn/retractEntity  (:db/id from-piece)])) ;; move
+    [[:db.fn/retractEntity  (:db/id from-piece)]])) ;; move
 
 (defn fight [db game-id  [from-piece to-piece :as pieces]]
   (cond
@@ -103,25 +94,5 @@
     (let [from-piece (get-piece db game-id (:from m))
           to-piece (get-piece db game-id (:to m))]
       (if (nil? (:db/id to-piece))
-        (move-piece-tx (:db/id from-piece) (:from m) (:to m))
+        [(move-piece-tx (:db/id from-piece) (:from m) (:to m))]
         (fight db game-id [from-piece to-piece])))))
-
-
-#_(execute-move (d/get-conn) (d/get-db) 17592186045435 {:from 40 :to 9})
-
-
-#_(f/print-console (get-game (d/get-db) 17592186045577))
-
-#_(add-grouping! (d/get-conn) (creat-persistent-game! (d/get-conn) "Nick") (pedestal-stratego.field/random-grouping) :top "Nick")
-
-#_(creat-persistent-game! (d/get-conn) "Nick")
-#_(add-player-2! (d/get-conn)  "Bio")
-
-
-
-#_(datomic/pull (d/get-db) '[:db/id
-                                        {:game/field [{:piece/rank [*]}
-                                                      :piece/owner
-                                                      :piece/pos]} ] 17592186045577)
-
-#_(datomic/pull (d/get-db) '[*] 17592186045579)

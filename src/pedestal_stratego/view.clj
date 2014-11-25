@@ -63,6 +63,7 @@
                           (:db/id p2) "color:blue"
                           player "color:black"))}
        (f/format-piece-console piece)]]
+     [:span {:style "font-size:10;"} (:i tile)]
      (when (and (not (empty? moves)) show-move?)
        [:form {:action uri :method :post}
         [:input {:hidden :hidden :value "PUT" :name :method}]
