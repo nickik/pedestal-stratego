@@ -6,7 +6,8 @@
 
 (def Ground (s/enum :water :gras))
 
-(def Rank (s/enum :piece.rank/r1
+(def Rank (s/enum :piece.rank/r0
+                  :piece.rank/r1
                   :piece.rank/r2
                   :piece.rank/r3
                   :piece.rank/r4
@@ -93,7 +94,7 @@
                                                 :i i}}) all-index)))
 
 (s/defn ^:always-validate get-sorted [board :- Field]
-  (mapv second (sort-by first  board)))
+  (mapv second (sort-by first board)))
 
 (s/defn ^:always-validate field-partition [field]
   (partition 10 field))
@@ -121,7 +122,7 @@
                   :player s/Any
                   (s/optional-key :error) [Move-Error] })
 
-(s/defn ^:always-validate format-piece-console [p :- Piece]
+(s/defn ^:always-validate format-piece-console [p :- (s/maybe Piece)]
   (condp = (:rank p)
     :piece.rank/r1 "1"
     :piece.rank/r2 "2"
@@ -135,7 +136,8 @@
     :piece.rank/spy "S"
     :piece.rank/bomb "B"
     :piece.rank/flag "F"
-    :piece.rank/r0 "X"))
+    :piece.rank/r0 "X"
+    nil "&nbsp;"))
 
 (defn format-console [field]
   (mapv (fn [f]
@@ -152,12 +154,6 @@
                                              (format-console
                                               (get-sorted field))))))))
 
-
-(s/defn ^:always-validate field-html [field :- Field]
-  (apply str (interpose "<br>" (map #(apply str %)
-                                            (field-partition
-                                             (format-console
-                                              (get-sorted field)))))))
 
 
 (s/defn ^:always-validate can-walk-on :- s/Bool [tile :- Tile, p :- Piece]
@@ -184,9 +180,6 @@
 
 (s/defn is-occupied-by-enemy-piece :- s/Bool [f :- Field player :- s/Any i :- s/Num]
   (let [enemy-p (:player (get-piece f i))]
-    #_(println "enemy-p: " enemy-p " player: " player "res: " (and enemy-p
-          (not= enemy-p
-                player)))
      (and enemy-p
           (not= enemy-p
                 player))))
@@ -393,19 +386,3 @@
        (-> f
            (set-piece (:from m) nil)
            (fight (:to m) piece1 piece2))))))
-
-(s/defn ^:always-validate mask-rank [field :- (s/maybe Field) user :- (s/either s/Str s/Num)]
-  (if (nil? field)
-    nil
-    (apply merge
-           (map
-            (fn [[k tile]]
-              (let [p (:piece tile)
-                    piece-owner (:player p)]
-                {k
-                 (if p
-                   (if (= user piece-owner)
-                     tile
-                     (assoc-in (assoc-in tile [:piece :rank] :piece.rank/r0) [:piece :possible-move] #{}))
-                   tile)}))
-            field))))

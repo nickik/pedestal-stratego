@@ -57,22 +57,17 @@
                {:game/field [*]}] game-id))
 
 (defn maybe-to-long [obj]
-  (println "2")
-  (println obj)
-  (if (number? obj)
-    (dbg obj)
-    (let [e (re-find #"\A-?\d+" obj)]
-      (println "-->")
-      (if e
-        (do (println "-> " e) (Long/parseLong e))
-        (dbg obj)))))
+  (cond
+   (number? obj) obj
+   (nil? obj) nil
+   (re-find #"\A-?\d+" obj) (Long/parseLong obj)
+   :else obj))
 
 (defn user-name-to-entity [db user-name]
   (ffirst
    (q '[:find ?e
         :in $ ?u
         :where [?e :user/name ?u]] db user-name)))
-
 
 (defn get-user-by-entity-id [db url-for id]
   (let [user (d/pull db '[*] id)]
@@ -84,11 +79,11 @@
        :params {:user (:user/name user)}))))
 
 (defn get-user-by-name-or-entity [db url-for param]
-  (println "get-user-by-name-or-entity")
-  (let [user (dbg (maybe-to-long param))
-        e (dbg (condp = (type user)
-                 String (user-name-to-entity db user)
-                 Long user))
+  (let [user (maybe-to-long param)
+        e (condp = (type user)
+            String  (user-name-to-entity db user)
+            Long user
+            nil nil)
         full-user (get-user-by-entity-id db url-for e)]
     (when (:db/id full-user)
       full-user)))
@@ -131,7 +126,17 @@
 
 (defn get-games [db]
   (q '[:find ?g
-       :where [?g :game/field ?f]] db))
+       :where [?g :game/player1 ?f]] db))
+
+
+(defn get-piece-owner [db game-id index]
+  (first (q '[:find ?o ?n
+              :in $ ?game-id ?index
+              :where
+              [?game-id :game/field ?p]
+              [?p :piece/owner ?o]
+              [?p :piece/pos ?index]
+              [?o :user/name ?n]] (get-db) game-id index)))
 
 #_(def g-tx (get-grouping-tx (first (vals (:tempids (creat-game (get-conn) (get-db) "Nick"))))
                            (pedestal-stratego.field/random-grouping)
@@ -158,12 +163,14 @@
             [?o :user/name ?n]
             [?ra :db/ident ?rank]] (get-db))
 
-#_(q '[:find ?g ?u1 ?u2
-     :where [?g :game/player1 ?p1]
-            [?g :game/player1 ?p2]
-            [?p1 :user/name ?u1]
-            [?p2 :user/name ?u2]
-            ] (get-db))
+#_(q '[:find ?p1 ?p2
+       :in $ ?game
+     :where [?game :game/player1 ?p1]
+            [?game :game/player2 ?p2]
+
+            ] (get-db), )
+
+#_(d/pull (get-db) '[{:game/player1 [:user/name]}] 17592186045435)
 
 
 #_(creat-piece (get-conn) :piece.rank/r5 (:db/id (get-user-by-name-or-entity (get-db) "Nick")) 1)

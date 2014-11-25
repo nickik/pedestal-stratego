@@ -9,11 +9,9 @@
 
 
 (defn creat-persistent-game! [conn player1]
-  (println player1)
-  (first (vals (:tempids
-                @(datomic/transact
-                  conn
-                  [(d/game-tx [:user/name player1])])))))
+  @(datomic/transact
+    conn
+    [(d/game-tx [:user/name player1])]))
 
 (defn add-player-2! [conn game-id player2]
   @(datomic/transact
@@ -46,27 +44,22 @@
      f/empty-field
      game)))
 
-(s/defn get-player
-  ([db game-id player :- (s/enum :game/player1 :game/player2)]
-   (player  (get-player db game-id)))
-  ([db game-id]
-   (apply merge
-          (map (fn [[k v]] {k (:user/name v)})
-               (datomic/pull db [{:game/player1 [:user/name]}
-                                 {:game/player2 [:user/name]}] game-id)))))
-;;game/player1
-;;(get-player (d/get-db) 17592186045435 )
+(s/defn get-player [db game-id]
+  (apply merge
+         (map (fn [[k v]] {k (:user/name v)})
+              (datomic/pull db [{:game/player1 [:user/name]}
+                                {:game/player2 [:user/name]}] game-id))))
 
 (defn add-start! [conn db game-id start-rank user]
-  (let [players (get-player db game-id)
-        pos (cond
-             (= user
-                (:game/player1 players)) :top
-             :default :bottum)]
+  (let [players  (get-player db game-id)
+        pos  (cond
+              (= user
+                 (:game/player1 players)) :top
+              :default :bottum)]
     (when (and (not (= user
                        (:game/player1 players)))
                (nil? (:game/player2 players)))
-      (add-player-2! conn user))
+      (add-player-2! conn game-id user))
     (add-grouping! conn game-id start-rank pos user)))
 
 #_(defn get-masked-game [games id user]
@@ -74,10 +67,6 @@
              [:field]
              f/mask-rank
              user))
-
-(s/defn execute-move [games id move]
-  (swap! games update-in [id :field] f/execute-move move)
-  (f/print-console (get-in @games [id :field])))
 
 (s/defn move-piece-tx [from-id old-pos :- s/Num new-pos :- s/Num]
   [:db.fn/cas from-id :piece/pos old-pos new-pos])
@@ -117,23 +106,22 @@
         (move-piece-tx (:db/id from-piece) (:from m) (:to m))
         (fight db game-id [from-piece to-piece])))))
 
-#_(p/pprint (execute-move (d/get-conn) (d/get-db) 17592186045435 {:from 40 :to 9}))
+
+#_(execute-move (d/get-conn) (d/get-db) 17592186045435 {:from 40 :to 9})
 
 
 #_(f/print-console (get-game (d/get-db) 17592186045577))
 
-#_(p/pprint (add-grouping! (d/get-conn) (dbg (creat-persistent-game! (d/get-conn) "Nick")) (pedestal-stratego.field/random-grouping) :top "Nick"))
-
-
+#_(add-grouping! (d/get-conn) (creat-persistent-game! (d/get-conn) "Nick") (pedestal-stratego.field/random-grouping) :top "Nick")
 
 #_(creat-persistent-game! (d/get-conn) "Nick")
 #_(add-player-2! (d/get-conn)  "Bio")
 
 
 
-#_(p/pprint (datomic/pull (d/get-db) '[:db/id
-                                     {:game/field [{:piece/rank [*]}
-                                                   :piece/owner
-                                                   :piece/pos]} ] 17592186045577))
+#_(datomic/pull (d/get-db) '[:db/id
+                                        {:game/field [{:piece/rank [*]}
+                                                      :piece/owner
+                                                      :piece/pos]} ] 17592186045577)
 
-#_(p/pprint (datomic/pull (d/get-db) '[*] 17592186045579))
+#_(datomic/pull (d/get-db) '[*] 17592186045579)

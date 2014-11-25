@@ -7,6 +7,7 @@
             [ring.util.response :as ring-resp]
             [pedestal-stratego.game :as g]
             [clojure.pprint :as p]
+            [schema.core :as s]
             [pedestal-stratego.field :as f]
             [pedestal-stratego.peer :as d]
             [pedestal-stratego.view :as v]
@@ -29,9 +30,7 @@
 
 (defn user-page [request]
   (let [param-user (get-in request [:path-params :user])
-
-        full-param-user (d/get-user-by-name-or-entity (:datomic-db request) param-user)
-
+        full-param-user (d/get-user-by-name-or-entity (:datomic-db request) (url-for) param-user)
         loggedin-user (:user (get-identity request))]
 
     (if full-param-user
@@ -60,63 +59,93 @@
                        (:uri request)))))
 
 (defn create-game [request]
-  (println "1")
   (let [conn (:datomic-conn request)
-        id (g/creat-persistent-game! conn (:user (get-identity request)))]
-    (println "2->2")
-    (println "type: " (type id))
-    (ring-resp/redirect
-     (dbg ((url-for) :get-game-route :params {:id id})))))
+        user-name (:user (get-identity request))
+        game-transact (g/creat-persistent-game! conn user-name)
+        game-id (first (vals (:tempids game-transact)))
+        body (s/validate (s/maybe [f/Rank]) (:edn-params request))]
+    (when body
+      (g/add-start! conn
+                    (:db-after game-transact)
+                    game-id
+                    body
+                    user-name))
+    (ring-resp/redirect-after-post
+     ((url-for) :get-game-route :params {:id game-id}))))
 
-#_(defn add-start-pos [request]
-  (let [id (Integer/parseInt (get-in request [:path-params :id]))
-        start (:edn-params request)
+(defn add-start-pos [request]
+  (let [id (Long/parseLong (get-in request [:path-params :id]))
+        start (s/validate (s/maybe [f/Rank]) (:edn-params request))
         user (:user (get-identity request))]
-    (g/add-start (:datomic-conn request)
-                 (:datomic-db request)
-                 id
-                 start
-                 user)
-    (ring-resp/redirect
-     ((url-for) :get-game-route :params {:id id}))))
+    (if start
+      (do (g/add-start! (:datomic-conn request)
+                        (:datomic-db request)
+                        id
+                        start
+                        user)
+        (-> (ring-resp/redirect ((url-for) :get-game-route :params {:id id}))
+                  (assoc :request-method :get)))
+      (ring-resp/response {:error "Body could not be validated, Pattern: [f/Rank]"}))))
+
 
 
 (defn get-game-route [request]
   (let [id (Long/parseLong (get-in request [:path-params :id]))
         user (:user (get-identity request))
         db (:datomic-db request)]
-
     (ring-resp/response
-     (html (v/view-game db (url-for) (:uri request) id)))))
+     (html (v/view-game db (url-for) user (:uri request) id)))))
 
-#_(defn get-index [request]
-  (let [id (Integer/parseInt (get-in request [:path-params :id]))
-        index (Integer/parseInt (get-in request [:path-params :index]))
+(defn get-index [request]
+  (let [id  (Long/parseLong (get-in request [:path-params :id]))
+        index  (Long/parseLong (get-in request [:path-params :index]))
         db (:datomic-db request)
-        user (:user (get-identity request))]
-
-    (ring-resp/response
-     (get (f/mask-rank (:field (g/get-game g/games id)) user) index))))
-
-#_(defn make-move [request]
-  (let [id (Integer/parseInt (get-in request [:path-params :id]))
-        index (Integer/parseInt (get-in request [:path-params :index]))
-
-        from-piece-moves (:possible-move (f/get-piece (:field (g/get-game g/games id)) index))
-
+        uri (:uri request)
         user (:user (get-identity request))
 
+        game (d/get-full-game db id)
+
+        field (f/possible-moves-field (d/parse-field db (:game/field game)))
+
+        tile (get field index)
+
+        p1 (d/get-user-by-name-or-entity db (url-for) (:db/id (:game/player1 game)))
+
+        p2 (d/get-user-by-name-or-entity db (url-for) (:db/id (:game/player2 game)))]
+
+    (ring-resp/response
+     (html
+      [:table
+       [:tr
+        (v/html-piece db (url-for) id      tile user p1 p2 true)]]))))
+
+(defn make-move [request]
+  (let [game-id (Long/parseLong (get-in request [:path-params :id]))
+        index (Long/parseLong (get-in request [:path-params :index]))
+        db (:datomic-db request)
+        conn (:datomic-conn request)
+        game  (d/get-full-game db game-id)
+        field (:game/field game)
+        field-with-moves (f/possible-moves-field (d/parse-field db field))
+        from-piece-moves (:possible-move (:piece (get field-with-moves index)))
+        user (:user (get-identity request))
+        to-field (some #{(:to (:edn-params request))} from-piece-moves)
         move {:from index
-              :to (some #{(:to (:edn-params request))} from-piece-moves)
-              :user user}
+              :to to-field
+              :user user}]
+    (if to-field
+      (do
+        @(datomic.api/transact
+          conn
+          [(dbg (g/execute-move conn db game-id move))])
+        (ring-resp/redirect
+         ((url-for)
+          :get-game-route
+          :params {:id game-id})))
+      (ring-resp/response {:error "No to field"}))))
 
-        from-rank (get-in (g/get-game g/games id) [:field index :piece :rank])
 
-        to-rank (get-in (g/get-game g/games id) [:field (:to move) :piece :rank])
-
-        player-that-moved-last (:user (g/get-last-move g/games id))]
-
-    (if (= player-that-moved-last
+#_(if (= player-that-moved-last
            user)
       (ring-resp/response {:error :not-your-move})
       (do
@@ -129,15 +158,17 @@
           (do
             (swap! g/games assoc-in [id :winner] user)
             (ring-resp/response {:winner user}))
+
           (ring-resp/response {:game (g/get-masked-game g/games id user)
                                :move {:from from-rank
-                                      :to to-rank}}))))))
+                                      :to to-rank}}))))
 
 #_(defn get-moves [request]
   (let [id (Integer/parseInt (get-in request [:path-params :id]))]
     (ring-resp/response
      (:moves (g/get-game g/games id)))))
 
+(declare is-part-of-game?)
 #_(defn is-part-of-game? [context]
   (let [id (get-in context [:path-params :id])
         game (g/get-game g/games (Integer/parseInt id))
@@ -147,6 +178,16 @@
 
     (if-not (some #{user} [player1 player2])
       (throw-forbidden {:silent? true}))))
+
+(defn piece-owner? [request]
+  (let [id  (Long/parseLong (get-in request [:path-params :id]))
+        index (Long/parseLong (get-in request [:path-params :index]))
+        user (:user (get-identity request))
+        owner (second (d/get-piece-owner (:datomic-db request)
+                                               id
+                                               index))]
+    (when-not (= user owner)
+      (throw-forbidden {:silent? false}))))
 
 (defon-request add-datomic-db [request]
   (assoc request
@@ -159,14 +200,25 @@
            [:p [:a {:rel :self  :href (:uri request)} "self"]]
            [:p [:a {:rel :game  :href ((url-for) ::get-games)} "game"]]
 
-           [:p [:a {:rel :users :href ((url-for) ::users-page)} "users"]]])))
+           [:p [:a {:rel :users :href ((url-for) :user-page-route)} "users"]]])))
+
+(defn move-form [request]
+  (let [uri (:uri request)
+        form (:form-params request)
+        path-params (:path-params request)
+        method (get form "method")
+        to (Long/parseLong (get form "to"))]
+    (make-move
+      (when method
+             (-> request
+                 (assoc :request-method (keyword method))
+                 (assoc :edn-params {:to to}))))))
 
 (defroutes routes
   [[["/" {:get home-page} ^:interceptors [(body-params/body-params)
                                           bootstrap/html-body
                                           add-datomic-db
                                           (http-basic "Stratego Login" (partial d/credentials (d/get-db)))]
-
      ["/users" {:get [:user-page-route users-page ^:interceptors []]
                 :post creat-user}
       ["/:user" {:get user-page}]]
@@ -174,10 +226,13 @@
                 :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
       ["/:id" {:get [:get-game-route get-game-route ^:interceptors [(guard :silent? false)]]
 
-               #_:put #_[:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)]]}
-       #_["/:index" {:get [:get-index get-index ^:interceptors [(guard :silent? false)]]
-                   :put [:make-move make-move ^:interceptors [(guard :silent? false)
-                                                              :unauthorized-fn is-part-of-game?]]}]]]]]])
+               :put [:add-start-pos add-start-pos ^:interceptors [(guard :silent? false)]]}
+       ["/:index"
+        ^:interceptors [(guard :silent? false)
+                        :unauthorized-fn piece-owner?]
+        {:get [:get-index get-index]
+         :post move-form
+         :put [:make-move make-move]}]]]]]])
 
 ;; Consumed by pedestal-stratego.server/create-server
 ;; See bootstrap/default-interceptors for additional options you can configure
