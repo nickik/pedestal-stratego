@@ -39,42 +39,36 @@
       (map #(view-user % auth-user)
            (d/get-users db url-for))]]]))
 
-(defn player? [db game-id player-id]
-  #_(= player-id)  (do #_(first (datomic.api/q '[:find ?p1 ?p2
-                                                       :in $ ?game-id
-                                                       :where [?game-id :game/player1 ?p1]
-                                                       [?game-id :game/player2 ?p2]
-                                                       [?game-id :game/player2 ?p2]] db game-id))
-                     :player1))
-
 (defn html-piece [db url-for game-id tile user p1 p2 show-move?]
   (let [piece (:piece tile)
         r (:rank piece)
         player (:db/id (:player piece))
         moves (:possible-move piece)
         uri (url-for :get-index :params {:id game-id :index (:i tile)})]
-    [:td {:border 0  :style (str "text-align:center;" (cond
-                                                (= (:ground tile) :water) "background-color:blue"
-                                                (= (:ground tile) :gras) "background-color:green")) }
-     [:a {:rel :self :href uri :style "text-decoration:none"}
+    [:td  {:itemscope :itemscope
+           :itemtype "Piece"
+           :border 0
+           :id (:i tile)
+           :style (str "text-align:center;" (cond
+                                             (= (:ground tile) :water) "background-color:blue"
+                                             (= (:ground tile) :gras) "background-color:green")) }
+     [:a {:itemprop :url :rel :self :href uri :style "text-decoration:none"}
       [:h1 {:style (str "font-size:50;"
                         (condp = player
                           (:db/id p1) "color:red"
                           (:db/id p2) "color:blue"
                           player "color:black"))}
        (f/format-piece-console piece)]]
-     [:span {:style "font-size:10;"} (:i tile)]
      (when (and (not (empty? moves)) show-move?)
-       [:form {:action uri :method :post}
+       [:form {:action uri :method :post :name :move}
         [:input {:hidden :hidden :value "PUT" :name :method}]
         [:select {:name :to}
-         (map
-          #(do [:option %])
-          moves)]
-        [:button {:type :submit} "Move"]])]))
+         (map #(do [:option %]) moves)]
+        [:br]
+        [:button {:type :submit} "Move"]])
+     [:span {:style "font-size:10;"} (:i tile)]]))
 
-
-(s/defn ^:always-validate mask-rank [db field :- (s/maybe f/Field) user :- (s/either s/Str s/Num)]
+(s/defn ^:always-validate mask-rank [db url-for field :- (s/maybe f/Field) user :- (s/either s/Str s/Num)]
   (if (nil? field)
     nil
     (apply merge
@@ -82,7 +76,7 @@
             (fn [[k tile]]
               (let [p (:piece tile)
                     piece-owner  (:db/id (:player p))
-                    user  (:db/id (d/get-user-by-name-or-entity user))]
+                    user  (:db/id (d/get-user-by-name-or-entity db url-for user))]
                 {k
                  (if p
                    (if (= user piece-owner)
@@ -92,17 +86,17 @@
             field))))
 
 
-(s/defn ^:always-validate field-html [db field :- f/Field user game-id url-for p1 p2]
+(s/defn ^:always-validate field-html [db field :- f/Field url-for user game-id url-for p1 p2]
   (html [:table {:border 0 :style "height:800;width:800px;"}
          (map
           (fn [row]
             [:tr
              (map
               (fn [tile]
-                (html-piece db url-for game-id tile user p1 p2 false))
+                (html-piece db url-for game-id tile user p1 p2 true))
               row)])
           (f/field-partition
-           (f/get-sorted (f/mask-rank db field user))))]))
+           (f/get-sorted (mask-rank db url-for field user))))]))
 
 (defn view-game [db url-for user uri game-id]
   (let [game  (d/get-full-game db game-id)
@@ -112,15 +106,23 @@
         p2 (d/get-user-by-name-or-entity db url-for (:db/id (:game/player2 game)))]
     (wrap
      user
-     [:div {:itemscope :itemscope :itemtype "http://schema.org/Thing"}
-      [:h4 {:itemprop :name} "Game"]
+     [:div {:itemscope :itemscope :itemtype "Game"}
+      [:h4 {:itemprop :name} "Stratego"]
       [:p [:a {:rel :self :href uri :itemprop :url} uri]]
       [:ul
        [:li (view-user p1 nil)]
        [:li (view-user p2 nil)]]
       (when field-asci
         (f/print-console field-asci)
-        (field-html db field-asci user game-id url-for p1 p2))])))
+        (field-html db field-asci url-for user game-id url-for p1 p2))
+      (when-not (and p1 p2)
+        [:form {:action uri :method :post :name :add-start-pos}
+         [:p "Body type must be application/edn"]
+         [:input {:hidden :hidden :type :text :name "method" :value "PUT" }]
+         [:input {:hidden :hidden :type :text :name "Content-Type" :value "application/edn"}]
+         [:input {:name :starter}]
+         [:p "Example: " (str (f/random-grouping))]
+         [:button {:type :submit} "Add Start Position"]])])))
 
 (defn view-games [db url-for uri]
   (html

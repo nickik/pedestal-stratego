@@ -21,19 +21,19 @@
   @(datomic/transact
     conn
     (d/get-grouping-tx game-id
-                     rank-grouping
-                     side
-                     [:user/name user])))
+                       rank-grouping
+                       side
+                       [:user/name user])))
 
 (defn get-field [db game-id]
   (let [game  (q '[:find ?n ?pos ?rank
                    :in $ ?game
                    :where [?game :game/field ?p]
-                   [?p :piece/pos ?pos]
-                   [?p :piece/rank ?ra]
-                   [?p :piece/owner ?o]
-                   [?o :user/name ?n]
-                   [?ra :db/ident ?rank]] db game-id)]
+                          [?p :piece/pos ?pos]
+                          [?p :piece/rank ?ra]
+                          [?p :piece/owner ?o]
+                          [?o :user/name ?n]
+                          [?ra :db/ident ?rank]] db game-id)]
     (reduce
      (fn [field [user pos rank]]
        (f/set-piece

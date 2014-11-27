@@ -45,7 +45,7 @@
                  (url-for)
                  (:user (get-identity request)))))
 
-(defn creat-user [request]
+#_(defn creat-user [request]
   (let [user (:name (:edn-params request))
         pw   (:password (:edn-params request))]
     (ring-resp/response
@@ -64,6 +64,7 @@
         game-transact (g/creat-persistent-game! conn user-name)
         game-id (first (vals (:tempids game-transact)))
         body (s/validate (s/maybe [f/Rank]) (:edn-params request))]
+    (p/pprint body)
     (when body
       (g/add-start! conn
                     (:db-after game-transact)
@@ -218,7 +219,7 @@
                                           add-datomic-db
                                           (http-basic "Stratego Login" (partial d/credentials (d/get-db)))]
      ["/users" {:get [:user-page-route users-page]
-                :post creat-user}
+                #_:post #_creat-user}
       ["/:user" {:get user-page}]]
      ["/games" {:get get-games
                 :post [:create-game create-game ^:interceptors [(guard :silent? false)]]}
